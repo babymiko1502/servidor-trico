@@ -275,3 +275,7 @@ app.get('/health', (_, res) => res.send('ok'));
 app.listen(PORT, () => {
   console.log(`Server listening on ${PORT}`);
 });
+app.get('/', (req, res) => {
+  res.send('Servidor activo');
+});
+

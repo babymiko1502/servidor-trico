@@ -67,7 +67,7 @@ function kbBtn(text, data) {
 }
 
 function buttonsForStep(step, sessionId) {
-  if (step === 'virtual') {
+  if (step === 'virtualpersona') {
     return [
       kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
       kbBtn('➡️ Siguiente', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' })

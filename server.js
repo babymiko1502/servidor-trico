@@ -237,25 +237,43 @@ app.get('/set-webhook', async (req, res) => {
 
 app.post('/telegram/webhook', async (req, res) => {
   try {
-    const body = req.body;
-    res.sendStatus(200);
+    const update = req.body;
+    res.sendStatus(200); // Siempre responde OK primero
 
-    const cb = body.callback_query;
-    if (cb && cb.data) {
-      let data;
-      try { data = JSON.parse(cb.data); } catch {}
-      if (!data || !data.sessionId) return;
+    const cb = update.callback_query;
+    if (!cb || !cb.data) return;
 
-      const { sessionId, action, redirect_to } = data;
-
-      if (action === 'redirect' && redirect_to) {
-        await writeState(sessionId, { pending: { redirect_to, at: ts() } });
-      }
+    let data;
+    try {
+      data = JSON.parse(cb.data);
+    } catch (err) {
+      console.error('❌ Error parseando callback_data:', cb.data);
+      return;
     }
+
+    const { sessionId, action, redirect_to } = data;
+
+    if (action === 'redirect' && sessionId && redirect_to) {
+      console.log(`➡️ Redirigiendo sessionId ${sessionId} a ${redirect_to}`);
+      await writeState(sessionId, { pending: { redirect_to, at: ts() } });
+
+      // Muy importante: esto notifica a Telegram que el botón fue procesado
+      await fetch(`${TG_API}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query_id: cb.id,
+          text: `🔁 Cliente redirigido a ${redirect_to}`,
+          show_alert: true
+        })
+      });
+    }
+
   } catch (e) {
-    console.error('webhook error:', e);
+    console.error('❌ Error en webhook:', e);
   }
 });
+
 
 app.get('/health', (_, res) => res.send('ok'));
 

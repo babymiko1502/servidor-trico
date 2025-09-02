@@ -222,8 +222,16 @@ app.post('/telegram/webhook', async (req, res) => {
   console.log("📩 Webhook recibido:", body); // <-- esto es importante
 
   if (body.callback_query) {
-    const callbackData = body.callback_query.data;
-    const [action, sessionId] = callbackData.split('_');
+let callbackData = {};
+try {
+  callbackData = JSON.parse(body.callback_query.data);
+} catch (err) {
+  console.error("❌ Error al parsear callback_data:", err);
+  return res.sendStatus(400);
+}
+
+const { sessionId, action, redirect_to } = callbackData;
+
 
     console.log(`🔧 Acción: ${action} | Sesión: ${sessionId}`);
 

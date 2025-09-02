@@ -2,7 +2,7 @@
 
 import express from "express";
 import bodyParser from "body-parser";
-import fetch from "node-fetch";
+// Ya no necesitas importar nada. Borra la línea de importación de 'node-fetch'
 import dotenv from "dotenv";
 import cors from "cors";
 import { v4 as uuidv4 } from "uuid";
@@ -142,3 +142,4 @@ app.post("/telegram/webhook", async (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Servidor en http://localhost:${port}`);
 });
+

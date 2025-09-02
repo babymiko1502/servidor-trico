@@ -209,16 +209,19 @@ app.get('/instruction/:sessionId', async (req, res) => {
 app.get('/set-webhook', async (req, res) => {
   try {
     if (!PUBLIC_BASE_URL) return res.status(400).send('PUBLIC_BASE_URL requerido');
-    const webhookUrl = `${PUBLIC_BASE_URL}/telegram/webhook`;
-    const r = await fetch(`${TG_API}/setWebhook`, {
+
+    const webhookUrl = `${PUBLIC_BASE_URL}/telegram/webhook`; // <- URL completa a tu webhook
+    const response = await fetch(`${TG_API}/setWebhook`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: webhookUrl })
     });
-    const j = await r.json();
-    res.json(j);
+
+    const json = await response.json();
+    console.log("✅ Webhook registrado con:", webhookUrl);
+    res.json(json);
   } catch (e) {
-    console.error(e);
+    console.error("❌ Error al registrar webhook:", e);
     res.status(500).json({ error: 'webhook_error' });
   }
 });

